@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	go_ora "github.com/sijms/go-ora/v2"
+	goora "github.com/sijms/go-ora/v2"
 )
 
 type OracleRepository struct {
@@ -37,11 +37,11 @@ func (r *OracleRepository) CallProcedure(ctx context.Context, name string, param
 			// For input parameters, use sql.Named with converted value
 			args = append(args, sql.Named(p.Name, r.convertInputValue(p)))
 		case "OUT":
-			// For output parameters, use go_ora.Out with appropriate destination
+			// For output parameters, use goora.Out with appropriate destination
 			if strings.ToUpper(p.Type) == "REF CURSOR" || strings.ToUpper(p.Type) == "SYS_REFCURSOR" {
 				// REF CURSOR requires special handling
-				var cursor go_ora.RefCursor
-				args = append(args, sql.Named(p.Name, go_ora.Out{Dest: &cursor}))
+				var cursor goora.RefCursor
+				args = append(args, sql.Named(p.Name, goora.Out{Dest: &cursor}))
 				outputParams[p.Name] = &cursor
 			} else {
 				outParam := r.createOutputParameter(p)
@@ -50,17 +50,17 @@ func (r *OracleRepository) CallProcedure(ctx context.Context, name string, param
 			}
 		case "INOUT":
 			// For INOUT parameters, we need to handle both input value and output destination
-			// This requires special handling since go_ora.Out.In is just a boolean flag
+			// This requires special handling since goora.Out.In is just a boolean flag
 			inputValue := r.convertInputValue(p)
 			if strings.ToUpper(p.Type) == "REF CURSOR" || strings.ToUpper(p.Type) == "SYS_REFCURSOR" {
 				return nil, fmt.Errorf("REF CURSOR cannot be used as INOUT parameter")
 			} else {
 				outParam := r.createOutputParameter(p)
 				// For INOUT, we need to pass the input value separately
-				// This is a workaround since go_ora.Out doesn't support input values directly
+				// This is a workaround since goora.Out doesn't support input values directly
 				args = append(args, sql.Named(p.Name, struct {
 					In  interface{}
-					Out go_ora.Out
+					Out goora.Out
 				}{
 					In:  inputValue,
 					Out: outParam,
@@ -200,27 +200,27 @@ func (r *OracleRepository) convertInputValue(p request.ProcedureParam) any {
 }
 
 // createOutputParameter creates the appropriate output parameter based on type
-func (r *OracleRepository) createOutputParameter(p request.ProcedureParam) go_ora.Out {
+func (r *OracleRepository) createOutputParameter(p request.ProcedureParam) goora.Out {
 	switch strings.ToUpper(p.Type) {
 	case "NUMBER", "INTEGER", "INT", "FLOAT", "DOUBLE":
 		var out sql.NullFloat64
-		return go_ora.Out{Dest: &out}
+		return goora.Out{Dest: &out}
 	case "VARCHAR2", "VARCHAR", "CHAR", "CLOB", "NVARCHAR2", "NCHAR", "NCLOB":
 		var out sql.NullString
 		// For strings, specify size to avoid ORA-06502 errors
-		return go_ora.Out{Dest: &out, Size: 4000}
+		return goora.Out{Dest: &out, Size: 4000}
 	case "DATE", "TIMESTAMP", "TIMESTAMP WITH TIME ZONE", "TIMESTAMP WITH LOCAL TIME ZONE":
 		var out sql.NullTime
-		return go_ora.Out{Dest: &out}
+		return goora.Out{Dest: &out}
 	case "BOOLEAN":
 		var out bool
-		return go_ora.Out{Dest: &out}
+		return goora.Out{Dest: &out}
 	case "RAW", "BLOB":
 		var out []byte
-		return go_ora.Out{Dest: &out, Size: 4000}
+		return goora.Out{Dest: &out, Size: 4000}
 	default:
 		var out any
-		return go_ora.Out{Dest: &out}
+		return goora.Out{Dest: &out}
 	}
 }
 
@@ -240,10 +240,10 @@ func (r *OracleRepository) processOutputParameters(params []request.ProcedurePar
 
 		// Handle REF CURSOR parameters
 		if strings.ToUpper(p.Type) == "REF CURSOR" || strings.ToUpper(p.Type) == "SYS_REFCURSOR" {
-			if cursorPtr, ok := dest.(*go_ora.RefCursor); ok && cursorPtr != nil {
+			if cursorPtr, ok := dest.(*goora.RefCursor); ok && cursorPtr != nil {
 				if cursorPtr != nil {
 					// Convert RefCursor to sql.Rows
-					rows, err := go_ora.WrapRefCursor(context.Background(), r.db, cursorPtr)
+					rows, err := goora.WrapRefCursor(context.Background(), r.db, cursorPtr)
 					if err != nil {
 						return nil, fmt.Errorf("failed to wrap REF CURSOR for parameter %s: %w", p.Name, err)
 					}
