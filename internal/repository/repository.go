@@ -95,7 +95,27 @@ func (r *OracleRepository) CallProcedure(ctx context.Context, name string, param
 }
 
 // GetProcedureInfo retrieves information about a stored procedure from Oracle's data dictionary
-func (r *OracleRepository) GetProcedureInfo(ctx context.Context, procedureName string) ([]map[string]any, error) {
+func (r *OracleRepository) GetProcedureInfo(ctx context.Context, fullProcedureName string) ([]map[string]any, error) {
+	// Разделяем полное имя на пакет и процедуру
+	var owner, packageName, procedureName string
+
+	parts := strings.Split(fullProcedureName, ".")
+	if len(parts) == 3 {
+		owner = strings.ToUpper(parts[0])
+		packageName = strings.ToUpper(parts[1])
+		procedureName = strings.ToUpper(parts[2])
+	} else if len(parts) == 2 {
+		owner = "" // если схема не указана, будет текущий пользователь
+		packageName = strings.ToUpper(parts[0])
+		procedureName = strings.ToUpper(parts[1])
+	} else if len(parts) == 1 {
+		owner = ""
+		packageName = ""
+		procedureName = strings.ToUpper(parts[0])
+	} else {
+		return nil, fmt.Errorf("invalid procedure name format: %s", fullProcedureName)
+	}
+
 	query := `
         SELECT 
             ARGUMENT_NAME,
@@ -103,13 +123,25 @@ func (r *OracleRepository) GetProcedureInfo(ctx context.Context, procedureName s
             IN_OUT,
             POSITION,
             DEFAULT_VALUE
-        FROM ALL_ARGUMENTS 
-        WHERE OBJECT_NAME = UPPER(:1)
-        AND OWNER = USER
-        ORDER BY POSITION
+        FROM ALL_ARGUMENTS
+        WHERE OBJECT_NAME = :1
     `
+	args := []interface{}{procedureName}
 
-	rows, err := r.db.QueryContext(ctx, query, procedureName)
+	if packageName != "" {
+		query += " AND PACKAGE_NAME = :2"
+		args = append(args, packageName)
+	}
+	if owner != "" {
+		query += " AND OWNER = :3"
+		args = append(args, owner)
+	} else {
+		query += " AND OWNER = USER"
+	}
+
+	query += " ORDER BY POSITION"
+
+	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query procedure info: %w", err)
 	}
