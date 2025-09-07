@@ -21,7 +21,6 @@ go.work.sum
 *.swp
 
 # Air config and logs
-.air.toml
 tmp/
 
 # Logs
